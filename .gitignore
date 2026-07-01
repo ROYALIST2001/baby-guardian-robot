@@ -1,0 +1,8 @@
+# Never upload our secrets.
+.env
+
+# Never upload installed libraries — they can always be reinstalled.
+node_modules/
+
+# Ignore Python's temporary cache files.
+__pycache__/

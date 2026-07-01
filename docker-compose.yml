@@ -1,0 +1,42 @@
+# The format version of this Compose file.
+version: "3.8"
+
+# "services" is the list of all containers we want to run together.
+services:
+   # ---------- Node.js backend ----------
+   node-backend:
+      build: ./node-backend # Build this one using the Dockerfile in node-backend/.
+      ports:
+         - "3000:3000" # Connect our computer's port 3000 to the container's 3000.
+      env_file:
+         - .env # Load the secret values from our .env file.
+      depends_on:
+         - redis # Make sure redis starts before this service.
+
+   # ---------- Python AI backend ----------
+   python-backend:
+      build: ./python-backend # Build using the Dockerfile in python-backend/.
+      ports:
+         - "8000:8000"
+      env_file:
+         - .env
+      depends_on:
+         - redis
+
+   # ---------- Redis (fast memory helper) ----------
+   redis:
+      image: redis:7 # No Dockerfile needed — use the ready-made Redis box.
+      ports:
+         - "6379:6379"
+
+   # ---------- Nginx (the single front door) ----------
+   nginx:
+      image: nginx:latest # Use the ready-made Nginx box.
+      ports:
+         - "80:80" # Port 80 means we can just visit http://localhost in a browser.
+      volumes:
+         # Hand our custom config file to Nginx inside its box.
+         - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      depends_on:
+         - node-backend
+         - python-backend
