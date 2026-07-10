@@ -22,6 +22,18 @@ This file tracks what is finished and what is paused.
    > built and tested locally with `docker compose up` for now.
    > Cloud hosting will be added when the project is closer to done.
 
-## Phase 2
+## Phase 2 — Database (done)
 
-- [ ] Phase 2 — Supabase database (the system's memory)
+- [x] Supabase project created
+- [x] Designed 5 tables (profiles, babies, sensor_readings, events, baby_patterns)
+- [x] Enabled Row Level Security + policies (each parent sees only their data)
+- [x] Created a test user (Auth)
+- [x] Seeded sample data
+- [x] Created private Storage bucket (baby-media)
+- [x] Enabled Realtime on sensor_readings and events
+- [x] Connected Node.js and Python backends to Supabase (secret key in .env)
+- [x] Manual backup method noted (CSV export / pg_dump)
+
+## ▶️ Next up
+
+- [ ] Phase 3 — Node.js backend server (REST APIs, MQTT, realtime, alert queues)

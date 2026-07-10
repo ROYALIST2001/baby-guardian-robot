@@ -1,5 +1,5 @@
 # Start from an official box that already has Node.js version 20 inside.
-FROM node:20
+FROM node:22
 
 # Set the working folder inside the box. All our files live here.
 WORKDIR /app
