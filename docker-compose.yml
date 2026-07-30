@@ -37,3 +37,10 @@ services:
       depends_on:
          - node-backend
          - python-backend
+   # ---------- Fake robot (simulator) ----------
+   simulator:
+      build: ./simulator
+      env_file:
+         - .env
+      depends_on:
+         - node-backend

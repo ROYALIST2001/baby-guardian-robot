@@ -1,5 +1,5 @@
 // FILE: src/repositories/eventRepository.js
-// JOB: Talk to the "events" table, filtered by parent.
+// JOB: Talk to the "events" table.
 
 const supabase = require("../config/supabase");
 
@@ -14,7 +14,7 @@ async function findAll(parentId) {
    return result;
 }
 
-// Mark one event resolved, but only if it belongs to this parent.
+// Mark one event resolved, only if it belongs to this parent.
 async function markResolved(eventId, parentId) {
    const result = await supabase
       .from("events")
@@ -26,7 +26,14 @@ async function markResolved(eventId, parentId) {
    return result;
 }
 
+// NEW: insert a new event row.
+async function insert(event) {
+   const result = await supabase.from("events").insert(event).select().single();
+   return result;
+}
+
 module.exports = {
    findAll: findAll,
    markResolved: markResolved,
+   insert: insert,
 };
