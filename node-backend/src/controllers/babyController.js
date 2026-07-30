@@ -1,23 +1,25 @@
 // FILE: src/controllers/babyController.js
-// JOB: Read the request, call the service, send the response.
+// JOB: Read the request, get the user id from req.user, call the service.
 
 const babyService = require("../services/babyService");
 
-// GET all babies
+// GET all babies for the logged-in parent
 async function getAll(req, res) {
    try {
-      const babies = await babyService.getAllBabies();
-      res.json(babies); // status 200 by default
+      const parentId = req.user.id; // set by the auth guard
+      const babies = await babyService.getAllBabies(parentId);
+      res.json(babies);
    } catch (error) {
       res.status(500).json({ error: error.message });
    }
 }
 
-// GET one baby by id
+// GET one baby
 async function getOne(req, res) {
    try {
-      const babyId = req.params.id; // read the id from the URL
-      const baby = await babyService.getBaby(babyId);
+      const parentId = req.user.id;
+      const babyId = req.params.id;
+      const baby = await babyService.getBaby(babyId, parentId);
       res.json(baby);
    } catch (error) {
       res.status(404).json({ error: error.message });
@@ -27,8 +29,9 @@ async function getOne(req, res) {
 // POST create a baby
 async function create(req, res) {
    try {
-      const newBaby = await babyService.createBaby(req.body); // data comes in req.body
-      res.status(201).json(newBaby); // 201 means created
+      const parentId = req.user.id;
+      const newBaby = await babyService.createBaby(parentId, req.body);
+      res.status(201).json(newBaby);
    } catch (error) {
       res.status(400).json({ error: error.message });
    }
@@ -37,8 +40,9 @@ async function create(req, res) {
 // PUT update a baby
 async function update(req, res) {
    try {
+      const parentId = req.user.id;
       const babyId = req.params.id;
-      const updated = await babyService.updateBaby(babyId, req.body);
+      const updated = await babyService.updateBaby(babyId, parentId, req.body);
       res.json(updated);
    } catch (error) {
       res.status(400).json({ error: error.message });
@@ -48,9 +52,10 @@ async function update(req, res) {
 // DELETE a baby
 async function remove(req, res) {
    try {
+      const parentId = req.user.id;
       const babyId = req.params.id;
-      await babyService.deleteBaby(babyId);
-      res.status(204).send(); // 204 means success, nothing to send back
+      await babyService.deleteBaby(babyId, parentId);
+      res.status(204).send();
    } catch (error) {
       res.status(500).json({ error: error.message });
    }

@@ -1,27 +1,26 @@
 // FILE: src/repositories/readingRepository.js
-// JOB: Talk to the "sensor_readings" table. Only read and write.
+// JOB: Talk to the "sensor_readings" table, filtered by parent.
 
 const supabase = require("../config/supabase");
 
-// Get readings. If a babyId is given, filter by that baby.
-async function findAll(babyId) {
-   // Start building the query: newest first, at most 100 rows.
+// Get this parent's readings. Optional baby filter.
+async function findAll(parentId, babyId) {
    let query = supabase
       .from("sensor_readings")
       .select("*")
+      .eq("parent_id", parentId) // only this parent's readings
       .order("recorded_at", { ascending: false })
       .limit(100);
 
-   // If the caller gave a babyId, add a filter.
    if (babyId) {
       query = query.eq("baby_id", babyId);
    }
 
    const result = await query;
-   return result; // { data, error }
+   return result;
 }
 
-// Insert a new reading row.
+// Insert a new reading (parent_id is set by us).
 async function insert(reading) {
    const result = await supabase
       .from("sensor_readings")

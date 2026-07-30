@@ -1,51 +1,60 @@
 // FILE: src/services/babyService.js
-// JOB: The rules and logic for babies. Calls the repository for data.
+// JOB: The rules for babies. Passes the parentId down to the repository.
 
 const babyRepository = require("../repositories/babyRepository");
 
-// Get the list of all babies.
-async function getAllBabies() {
-   const result = await babyRepository.findAll();
+// Get all babies for this parent.
+async function getAllBabies(parentId) {
+   const result = await babyRepository.findAll(parentId);
    if (result.error) {
       throw new Error(result.error.message);
    }
    return result.data;
 }
 
-// Get one baby by id.
-async function getBaby(babyId) {
-   const result = await babyRepository.findOne(babyId);
+// Get one baby for this parent.
+async function getBaby(babyId, parentId) {
+   const result = await babyRepository.findOne(babyId, parentId);
    if (result.error) {
       throw new Error("Baby not found");
    }
    return result.data;
 }
 
-// Create a new baby.
-async function createBaby(babyInput) {
-   // Rule: a baby must have a name and a parent_id.
-   if (!babyInput.name || !babyInput.parent_id) {
-      throw new Error("name and parent_id are required");
+// Create a baby for this parent.
+async function createBaby(parentId, babyInput) {
+   // Rule: a baby must have a name.
+   if (!babyInput.name) {
+      throw new Error("name is required");
    }
-   const result = await babyRepository.insert(babyInput);
+
+   // Build the row. The parent_id comes from the token, not the body.
+   const baby = {
+      parent_id: parentId,
+      name: babyInput.name,
+      birth_date: babyInput.birth_date,
+      notes: babyInput.notes,
+   };
+
+   const result = await babyRepository.insert(baby);
    if (result.error) {
       throw new Error(result.error.message);
    }
    return result.data;
 }
 
-// Update a baby.
-async function updateBaby(babyId, changes) {
-   const result = await babyRepository.update(babyId, changes);
+// Update a baby for this parent.
+async function updateBaby(babyId, parentId, changes) {
+   const result = await babyRepository.update(babyId, parentId, changes);
    if (result.error) {
       throw new Error(result.error.message);
    }
    return result.data;
 }
 
-// Delete a baby.
-async function deleteBaby(babyId) {
-   const result = await babyRepository.remove(babyId);
+// Delete a baby for this parent.
+async function deleteBaby(babyId, parentId) {
+   const result = await babyRepository.remove(babyId, parentId);
    if (result.error) {
       throw new Error(result.error.message);
    }

@@ -1,20 +1,20 @@
 // FILE: src/services/eventService.js
-// JOB: The rules and logic for events. Calls the repository.
+// JOB: The rules for events. Passes parentId down.
 
 const eventRepository = require("../repositories/eventRepository");
 
-// Get the list of events.
-async function getEvents() {
-   const result = await eventRepository.findAll();
+// Get this parent's events.
+async function getEvents(parentId) {
+   const result = await eventRepository.findAll(parentId);
    if (result.error) {
       throw new Error(result.error.message);
    }
    return result.data;
 }
 
-// Mark an event as resolved.
-async function resolveEvent(eventId) {
-   const result = await eventRepository.markResolved(eventId);
+// Resolve one of this parent's events.
+async function resolveEvent(eventId, parentId) {
+   const result = await eventRepository.markResolved(eventId, parentId);
    if (result.error) {
       throw new Error("Could not resolve event");
    }

@@ -1,23 +1,25 @@
 // FILE: src/controllers/eventController.js
-// JOB: Read the request, call the service, send the response.
+// JOB: Read the request, get the user id, call the service.
 
 const eventService = require("../services/eventService");
 
-// GET all events
+// GET all events for this parent
 async function getAll(req, res) {
    try {
-      const events = await eventService.getEvents();
+      const parentId = req.user.id;
+      const events = await eventService.getEvents(parentId);
       res.json(events);
    } catch (error) {
       res.status(500).json({ error: error.message });
    }
 }
 
-// PUT mark an event as resolved
+// PUT mark an event resolved
 async function resolve(req, res) {
    try {
+      const parentId = req.user.id;
       const eventId = req.params.id;
-      const updated = await eventService.resolveEvent(eventId);
+      const updated = await eventService.resolveEvent(eventId, parentId);
       res.json(updated);
    } catch (error) {
       res.status(400).json({ error: error.message });
