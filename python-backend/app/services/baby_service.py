@@ -1,40 +1,45 @@
 # FILE: app/services/baby_service.py
-# JOB: Send an image to Colab and find if a baby (person) is present.
+# JOB: Detect a baby (person) in an image, using both caches.
 
 import os
 import requests
+from app.config import cache
 
-# Read the Colab URL from the environment (from .env).
 COLAB_AI_URL = os.environ.get("COLAB_AI_URL", "")
-
-# The model calls a baby a "person". We look for this label.
 PERSON_LABEL = "person"
-
-# We ignore very weak guesses. Only keep detections above this score.
 MIN_SCORE = 0.7
 
 
-def detect_baby(image_bytes):
-    # Safety check: make sure we have a Colab URL.
+def detect_baby(baby_id, image_bytes):
     if not COLAB_AI_URL:
         raise Exception("COLAB_AI_URL is not set in .env")
 
-    # The Colab server has an endpoint called /detect for images.
-    url = COLAB_AI_URL + "/detect"
+    # ---- Check 1: exact-match cache ----
+    exact_key = cache.make_exact_key("baby", image_bytes)
+    exact_answer = cache.get_exact(exact_key)
+    if exact_answer is not None:
+        print("Exact cache hit for baby")
+        return exact_answer
 
-    # Send the image as a file upload to Colab.
+    # ---- Check 2: time-window cache ----
+    recent_key = cache.make_recent_key("baby_recent", baby_id)
+    recent_answer = cache.get_recent(recent_key)
+    if recent_answer is not None:
+        print("Recent cache hit for baby (same baby, last few seconds)")
+        return recent_answer
+
+    # ---- Both missed. Call the model. ----
+    print("Cache miss. Calling the baby detection model.")
+    url = COLAB_AI_URL + "/detect"
     files = {"file": ("image", image_bytes)}
     response = requests.post(url, files=files)
 
-    # Check the request worked.
     if response.status_code != 200:
         raise Exception("Colab server error " + str(response.status_code) + ": " + response.text)
 
-    # The Colab server returns { "results": [ ... ] }.
     data = response.json()
     all_objects = data["results"]
 
-    # Keep only "person" detections with a good enough score.
     person_boxes = []
     for obj in all_objects:
         label = obj["label"].lower()
@@ -42,13 +47,17 @@ def detect_baby(image_bytes):
         if label == PERSON_LABEL and score >= MIN_SCORE:
             person_boxes.append({
                 "score": score,
-                "box": obj["box"]   # the box has left, top, right, bottom
+                "box": obj["box"]
             })
 
-    # Build the clean answer.
-    baby_found = len(person_boxes) > 0
-    return {
-        "baby_found": baby_found,
+    answer = {
+        "baby_found": len(person_boxes) > 0,
         "count": len(person_boxes),
         "boxes": person_boxes
     }
+
+    # ---- Save in BOTH caches ----
+    cache.set_exact(exact_key, answer)
+    cache.set_recent(recent_key, answer)
+
+    return answer

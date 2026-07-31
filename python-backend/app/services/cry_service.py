@@ -1,54 +1,65 @@
 # FILE: app/services/cry_service.py
-# JOB: Send audio to our Colab model server and decide if crying.
+# JOB: Detect crying, using both the exact-match and time-window caches.
 
 import os
 import requests
+from app.config import cache
 
-# Read the Colab URL from the environment (from .env).
 COLAB_AI_URL = os.environ.get("COLAB_AI_URL", "")
-
-# Words that suggest a baby is crying.
 CRYING_WORDS = ["cry", "crying", "baby", "infant", "wail", "sob"]
 
 
-def detect_cry(audio_bytes):
-    # Safety check: make sure we have a Colab URL.
+def detect_cry(baby_id, audio_bytes):
     if not COLAB_AI_URL:
         raise Exception("COLAB_AI_URL is not set in .env")
 
-    # The Colab server has one endpoint called /classify.
-    url = COLAB_AI_URL + "/classify"
+    # ---- Check 1: exact-match cache (same file sent again) ----
+    exact_key = cache.make_exact_key("cry", audio_bytes)
+    exact_answer = cache.get_exact(exact_key)
+    if exact_answer is not None:
+        print("Exact cache hit for cry")
+        return exact_answer
 
-    # Send the audio as a file upload to Colab.
+    # ---- Check 2: time-window cache (same baby checked recently) ----
+    recent_key = cache.make_recent_key("cry_recent", baby_id)
+    recent_answer = cache.get_recent(recent_key)
+    if recent_answer is not None:
+        print("Recent cache hit for cry (same baby, last few seconds)")
+        return recent_answer
+
+    # ---- Both missed. Call the model. ----
+    print("Cache miss. Calling the cry model.")
+    url = COLAB_AI_URL + "/classify"
     files = {"file": ("audio", audio_bytes)}
     response = requests.post(url, files=files)
 
-    # Check the request worked.
     if response.status_code != 200:
         raise Exception("Colab server error " + str(response.status_code) + ": " + response.text)
 
-    # The Colab server returns { "results": [ ... ] }.
     data = response.json()
     results = data["results"]
 
-    # Safety check.
     if not isinstance(results, list) or len(results) == 0:
         raise Exception("Unexpected answer from the model")
 
-    # The first item is the top guess.
     top = results[0]
     top_label = top["label"].lower()
     top_score = top["score"]
 
-    # Decide if the top label means crying.
     is_crying = False
     for word in CRYING_WORDS:
         if word in top_label:
             is_crying = True
             break
 
-    return {
+    answer = {
         "is_crying": is_crying,
         "label": top["label"],
         "score": top_score
     }
+
+    # ---- Save the answer in BOTH caches ----
+    cache.set_exact(exact_key, answer)
+    cache.set_recent(recent_key, answer)
+
+    return answer
