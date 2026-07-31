@@ -1,5 +1,5 @@
 # FILE: app/services/cry_service.py
-# JOB: Detect crying, using both the exact-match and time-window caches.
+# JOB: Detect crying, using both caches. Now with a small testable helper.
 
 import os
 import requests
@@ -9,18 +9,28 @@ COLAB_AI_URL = os.environ.get("COLAB_AI_URL", "")
 CRYING_WORDS = ["cry", "crying", "baby", "infant", "wail", "sob"]
 
 
+# NEW small helper: decide if a label means crying.
+# This is pure logic (no internet), so it is easy to test.
+def is_crying_label(label):
+    label = label.lower()
+    for word in CRYING_WORDS:
+        if word in label:
+            return True
+    return False
+
+
 def detect_cry(baby_id, audio_bytes):
     if not COLAB_AI_URL:
         raise Exception("COLAB_AI_URL is not set in .env")
 
-    # ---- Check 1: exact-match cache (same file sent again) ----
+    # ---- Check 1: exact-match cache ----
     exact_key = cache.make_exact_key("cry", audio_bytes)
     exact_answer = cache.get_exact(exact_key)
     if exact_answer is not None:
         print("Exact cache hit for cry")
         return exact_answer
 
-    # ---- Check 2: time-window cache (same baby checked recently) ----
+    # ---- Check 2: time-window cache ----
     recent_key = cache.make_recent_key("cry_recent", baby_id)
     recent_answer = cache.get_recent(recent_key)
     if recent_answer is not None:
@@ -43,22 +53,17 @@ def detect_cry(baby_id, audio_bytes):
         raise Exception("Unexpected answer from the model")
 
     top = results[0]
-    top_label = top["label"].lower()
+    top_label = top["label"]
     top_score = top["score"]
 
-    is_crying = False
-    for word in CRYING_WORDS:
-        if word in top_label:
-            is_crying = True
-            break
-
+    # Use the new helper here.
     answer = {
-        "is_crying": is_crying,
-        "label": top["label"],
+        "is_crying": is_crying_label(top_label),
+        "label": top_label,
         "score": top_score
     }
 
-    # ---- Save the answer in BOTH caches ----
+    # ---- Save in BOTH caches ----
     cache.set_exact(exact_key, answer)
     cache.set_recent(recent_key, answer)
 

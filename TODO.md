@@ -34,6 +34,31 @@ This file tracks what is finished and what is paused.
 - [x] Connected Node.js and Python backends to Supabase (secret key in .env)
 - [x] Manual backup method noted (CSV export / pg_dump)
 
-## ▶️ Next up
+## ✅ Phase 3 — Node.js Backend Server (done)
 
-- [ ] Phase 3 — Node.js backend server (REST APIs, MQTT, realtime, alert queues)
+- [x] Professional src/ structure (routes, middleware, services, queues)
+- [x] Versioned REST APIs (/api/v1) with full CRUD
+- [x] Login endpoint + JWT auth guard (every route protected)
+- [x] Per-user data filtering (parents only see their own data)
+- [x] Rate limiting (general + strict login) and Helmet + CORS
+- [x] MQTT over TLS to HiveMQ Cloud (sensors + events topics)
+- [x] Sensor simulator (fake robot) as its own container
+- [x] Socket.IO live updates + browser test page + Nginx websocket config
+- [x] BullMQ alert queue on Redis (retries, backoff, priority)
+- [x] Mode controller (manual/auto in Redis, announces via Socket.IO + MQTT)
+- [x] Alert manager rules (info/warning/emergency, auto-switch to manual)
+- [x] First Jest automated tests (4 passing)
+
+## Phase 4 - AI Senses (done)
+
+- [x] Layered FastAPI structure for the Python backend
+- [x] Cry detection from audio (via Colab model server)
+- [x] Baby detection from image (via Colab model server)
+- [x] Redis caching: exact-match and time-window
+- [x] Pytest tests for cache keys and crying logic
+- [ ] Fine-tuning the cry model (optional, later improvement)
+
+## Notes
+
+- AI models run in Google Colab for now (testing only), reached by ngrok URL.
+- Colab URL changes each session. Update COLAB_AI_URL in .env each time.
