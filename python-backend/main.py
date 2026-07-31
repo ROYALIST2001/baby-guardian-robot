@@ -1,12 +1,12 @@
 # FILE: main.py
-# JOB: Create the app and connect the routes.
+# JOB: Create the app and connect all routes.
 
 from fastapi import FastAPI
 from app.routes import health_routes
+from app.routes import cry_routes   # new
 
-# Create the FastAPI application.
 app = FastAPI()
 
-# Connect the health router.
-# Now GET /health is handled by our layered code.
+# Connect the routers.
 app.include_router(health_routes.router)
+app.include_router(cry_routes.router)   # new
