@@ -1,6 +1,5 @@
 # FILE: app/services/brain_service.py
-# JOB: Decide what to do about a baby's situation.
-#      Use fixed rules for emergencies. Use GPT for soft decisions.
+# JOB: Decide (Part 1) plus run the full thinking loop (Part 2).
 
 import json
 from app.config import openai_client
@@ -9,9 +8,8 @@ client = openai_client.client
 MODEL = openai_client.OPENAI_MODEL
 
 
-# ---- Layer 1: safe rules for clear emergencies (no GPT, no cost) ----
+# ---- Part 1: rules for clear emergencies ----
 def check_emergency_rules(situation):
-    # If smoke, fire, or a fall is present, it is always an emergency.
     event = situation.get("event_type", "")
     if event in ["smoke", "fire", "fall"]:
         return {
@@ -19,14 +17,11 @@ def check_emergency_rules(situation):
             "reason": "Dangerous event detected: " + event,
             "used_gpt": False
         }
-    # No clear emergency found.
     return None
 
 
-# ---- Layer 2: ask GPT for the soft decision ----
+# ---- Part 1: ask GPT for the soft decision ----
 def ask_gpt(situation):
-    # Build a short prompt. Short text keeps the cost low.
-    # We ask GPT to answer with ONE word action.
     prompt = (
         "You are a baby care assistant. "
         "Based on the situation, choose ONE action from this list: "
@@ -38,17 +33,14 @@ def ask_gpt(situation):
         "Situation: " + json.dumps(situation)
     )
 
-    # Call GPT.
     response = client.chat.completions.create(
         model=MODEL,
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=5,        # we only need one word, so keep this tiny
-        temperature=0        # 0 makes the answer steady and predictable
+        max_tokens=5,
+        temperature=0
     )
 
-    # Read GPT's answer text.
     answer = response.choices[0].message.content.strip().lower()
-
     return {
         "action": answer,
         "reason": "Decided by GPT",
@@ -56,12 +48,25 @@ def ask_gpt(situation):
     }
 
 
-# ---- The main function that ties both layers together ----
+# ---- Part 1: the single decide step ----
 def decide(situation):
-    # Step 1: check the safe emergency rules first.
     emergency = check_emergency_rules(situation)
     if emergency is not None:
         return emergency
-
-    # Step 2: not an emergency, so ask GPT for a soft decision.
     return ask_gpt(situation)
+
+
+# ---- Part 2: run the whole thinking loop ----
+# We import the graph here (inside the function is also fine, but top import
+# would create a loop, so we import it lazily here to keep things simple).
+def run_brain(situation):
+    # Import here to avoid an import loop between nodes and this service.
+    from app.brain.graph import brain_graph
+
+    # The loop starts with the raw situation in the state.
+    start_state = {"situation": situation}
+
+    # Run the whole graph. It returns the final state after all nodes.
+    final_state = brain_graph.invoke(start_state)
+
+    return final_state
