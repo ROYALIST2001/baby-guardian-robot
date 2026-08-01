@@ -62,3 +62,16 @@ This file tracks what is finished and what is paused.
 
 - AI models run in Google Colab for now (testing only), reached by ngrok URL.
 - Colab URL changes each session. Update COLAB_AI_URL in .env each time.
+
+## Phase 5 - AI Brain (done)
+
+- [x] Single decide step: rules for danger, GPT for soft choices
+- [x] Full LangGraph loop: Perceive, Analyze, Decide, Act, Learn
+- [x] Brain runs automatically on robot events (Node calls Python)
+- [x] Memory: read and write baby_patterns (last_action, cry_count)
+- [ ] Advanced brain features (branches, deeper memory) - optional later
+
+## Notes
+
+- Uses OpenAI model gpt-4.1-nano (cheap). Model name is in .env as OPENAI_MODEL.
+- Emergencies use fixed rules, not GPT, for safety and low cost.
