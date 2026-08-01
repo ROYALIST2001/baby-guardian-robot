@@ -5,6 +5,7 @@ const mqttClient = require("../config/mqtt");
 const socket = require("../config/socket"); // new: to emit live updates
 const readingService = require("../services/readingService");
 const eventService = require("../services/eventService");
+const brainClient = require("../services/brainClient");
 
 const SENSOR_TOPIC = "babyguardian/sensors";
 const EVENT_TOPIC = "babyguardian/events";
@@ -61,6 +62,16 @@ function start() {
             // Step 2: push it live.
             if (io) {
                io.emit("event", data);
+            }
+            // Step 3: NEW: ask the brain what to do about this event.
+            const decision = await brainClient.askBrain(data);
+            if (decision) {
+               console.log(
+                  "BRAIN decision:",
+                  decision.action,
+                  "-",
+                  decision.action_result,
+               );
             }
          }
       } catch (saveError) {
