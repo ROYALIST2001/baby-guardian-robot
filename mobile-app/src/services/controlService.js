@@ -13,7 +13,7 @@ export async function setMode(mode) {
    return await putWithAuth("/v1/mode", { mode: mode });
 }
 
-// Drive the robot. Direction is forward, backward, left, right, or stop.
+// Drive the robot.
 export async function move(direction) {
    return await postWithAuth("/v1/commands/move", { direction: direction });
 }
@@ -26,4 +26,9 @@ export async function playMusic(track) {
 // Stop the music.
 export async function stopMusic() {
    return await postWithAuth("/v1/commands/music", { action: "stop" });
+}
+
+// NEW: move the camera. Move is up, down, left, right, or center.
+export async function moveCamera(move) {
+   return await postWithAuth("/v1/commands/camera", { move: move });
 }

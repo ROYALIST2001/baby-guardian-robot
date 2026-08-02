@@ -205,6 +205,21 @@ export default function HomeScreen({ navigation, onLogout }) {
          >
             <Text style={styles.controlButtonText}>Control Robot</Text>
          </TouchableOpacity>
+         {/* Go to the emergency screen */}
+         <TouchableOpacity
+            style={styles.emergencyButton}
+            onPress={() => navigation.navigate("Emergency")}
+         >
+            <Text style={styles.controlButtonText}>Emergencies</Text>
+         </TouchableOpacity>
+
+         {/* Go to the video screen */}
+         <TouchableOpacity
+            style={styles.videoButton}
+            onPress={() => navigation.navigate("Video")}
+         >
+            <Text style={styles.controlButtonText}>Live Video</Text>
+         </TouchableOpacity>
       </ScrollView>
    );
 }
@@ -242,4 +257,16 @@ const styles = StyleSheet.create({
       marginTop: 24,
    },
    controlButtonText: { color: "#ffffff", textAlign: "center", fontWeight: "bold" },
+   emergencyButton: {
+      backgroundColor: "#cc4444",
+      padding: 14,
+      borderRadius: 8,
+      marginTop: 24,
+   },
+   videoButton: {
+      backgroundColor: "#5a5a8a",
+      padding: 14,
+      borderRadius: 8,
+      marginTop: 10,
+   },
 });

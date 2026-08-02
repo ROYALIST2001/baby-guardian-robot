@@ -9,7 +9,9 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import LoginScreen from "./src/screens/LoginScreen";
 import SignupScreen from "./src/screens/SignupScreen";
 import HomeScreen from "./src/screens/HomeScreen";
-import ControlScreen from "./src/screens/ControlScreen"; // new
+import ControlScreen from "./src/screens/ControlScreen";
+import VideoScreen from "./src/screens/VideoScreen"; // new
+import EmergencyScreen from "./src/screens/EmergencyScreen"; // new
 import { getToken } from "./src/services/storageService";
 
 const Stack = createNativeStackNavigator();
@@ -41,7 +43,6 @@ export default function App() {
       <NavigationContainer>
          <Stack.Navigator>
             {loggedIn ? (
-               // ---- Logged in: dashboard and control ----
                <>
                   <Stack.Screen name="Home" options={{ title: "Baby Guardian" }}>
                      {(props) => (
@@ -49,15 +50,26 @@ export default function App() {
                      )}
                   </Stack.Screen>
 
-                  {/* New: the control screen. A back arrow appears by itself. */}
                   <Stack.Screen
                      name="Control"
                      component={ControlScreen}
                      options={{ title: "Control Robot" }}
                   />
+
+                  {/* New screens */}
+                  <Stack.Screen
+                     name="Video"
+                     component={VideoScreen}
+                     options={{ title: "Live Video" }}
+                  />
+
+                  <Stack.Screen
+                     name="Emergency"
+                     component={EmergencyScreen}
+                     options={{ title: "Emergencies" }}
+                  />
                </>
             ) : (
-               // ---- Not logged in: login and signup ----
                <>
                   <Stack.Screen name="Login" options={{ headerShown: false }}>
                      {(props) => (

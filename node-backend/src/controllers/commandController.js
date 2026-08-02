@@ -26,7 +26,19 @@ function music(req, res) {
    }
 }
 
+// NEW: POST /v1/commands/camera
+function camera(req, res) {
+   try {
+      const cameraMove = req.body.move;
+      const command = commandService.sendCamera(cameraMove);
+      res.json({ sent: true, command: command });
+   } catch (error) {
+      res.status(400).json({ error: error.message });
+   }
+}
+
 module.exports = {
    move: move,
    music: music,
+   camera: camera,
 };
