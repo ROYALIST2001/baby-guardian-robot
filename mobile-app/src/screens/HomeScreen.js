@@ -32,7 +32,7 @@ function buildLatestReadings(rows) {
    return latest;
 }
 
-export default function HomeScreen({ onLogout }) {
+export default function HomeScreen({ navigation, onLogout }) {
    // The baby we are showing.
    const [baby, setBaby] = useState(null);
 
@@ -197,6 +197,14 @@ export default function HomeScreen({ onLogout }) {
          <TouchableOpacity style={styles.logout} onPress={handleLogout}>
             <Text style={styles.logoutText}>Log Out</Text>
          </TouchableOpacity>
+
+         {/* Go to the control screen */}
+         <TouchableOpacity
+            style={styles.controlButton}
+            onPress={() => navigation.navigate("Control")}
+         >
+            <Text style={styles.controlButtonText}>Control Robot</Text>
+         </TouchableOpacity>
       </ScrollView>
    );
 }
@@ -227,4 +235,11 @@ const styles = StyleSheet.create({
       marginBottom: 40,
    },
    logoutText: { color: "#ffffff", textAlign: "center", fontWeight: "bold" },
+   controlButton: {
+      backgroundColor: "#4a90d9",
+      padding: 14,
+      borderRadius: 8,
+      marginTop: 24,
+   },
+   controlButtonText: { color: "#ffffff", textAlign: "center", fontWeight: "bold" },
 });

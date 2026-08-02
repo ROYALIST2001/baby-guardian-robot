@@ -6,6 +6,7 @@ const socket = require("../config/socket"); // new: to emit live updates
 const readingService = require("../services/readingService");
 const eventService = require("../services/eventService");
 const brainClient = require("../services/brainClient");
+const modeService = require("../services/modeService");
 
 const SENSOR_TOPIC = "babyguardian/sensors";
 const EVENT_TOPIC = "babyguardian/events";
@@ -72,6 +73,12 @@ function start() {
                   "-",
                   decision.action_result,
                );
+
+               // NEW: on an emergency, force the robot back to manual mode,
+               // so the parent is in control. This also tells the app live.
+               if (decision.action === "emergency") {
+                  await modeService.setMode("manual", "emergency: " + data.event_type);
+               }
             }
          }
       } catch (saveError) {
