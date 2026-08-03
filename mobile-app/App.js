@@ -1,5 +1,5 @@
 // FILE: App.js
-// JOB: Check if we are logged in, then show the right screens.
+// JOB: Check login and the biometric lock, then show the right screens.
 
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet } from "react-native";
@@ -10,9 +10,13 @@ import LoginScreen from "./src/screens/LoginScreen";
 import SignupScreen from "./src/screens/SignupScreen";
 import HomeScreen from "./src/screens/HomeScreen";
 import ControlScreen from "./src/screens/ControlScreen";
-import VideoScreen from "./src/screens/VideoScreen"; // new
-import EmergencyScreen from "./src/screens/EmergencyScreen"; // new
-import { getToken } from "./src/services/storageService";
+import VideoScreen from "./src/screens/VideoScreen";
+import EmergencyScreen from "./src/screens/EmergencyScreen";
+import SettingsScreen from "./src/screens/SettingsScreen"; // new
+import LockScreen from "./src/screens/LockScreen"; // new
+
+import { getToken, isBiometricEnabled } from "./src/services/storageService";
+import { runBiometricCheck } from "./src/services/biometricService";
 
 const Stack = createNativeStackNavigator();
 
@@ -20,23 +24,63 @@ export default function App() {
    const [loading, setLoading] = useState(true);
    const [loggedIn, setLoggedIn] = useState(false);
 
+   // Is the app locked right now?
+   const [locked, setLocked] = useState(false);
+
+   // Runs once when the app opens.
    useEffect(function () {
-      async function checkLogin() {
-         const token = await getToken();
-         if (token) {
-            setLoggedIn(true);
-         }
-         setLoading(false);
-      }
-      checkLogin();
+      startUp();
    }, []);
 
+   // The startup check, in order.
+   async function startUp() {
+      // Step 1: is there a saved token?
+      const token = await getToken();
+
+      if (!token) {
+         // Not logged in. Show login. No lock needed.
+         setLoggedIn(false);
+         setLoading(false);
+         return;
+      }
+
+      // Step 2: logged in. Is the lock turned on?
+      setLoggedIn(true);
+      const lockOn = await isBiometricEnabled();
+
+      if (!lockOn) {
+         // The lock is off. Go straight in.
+         setLocked(false);
+         setLoading(false);
+         return;
+      }
+
+      // Step 3: the lock is on. Ask the phone to check.
+      const passed = await runBiometricCheck();
+      setLocked(!passed);
+      setLoading(false);
+   }
+
+   // Runs when the Unlock button is tapped on the lock screen.
+   async function handleUnlock() {
+      const passed = await runBiometricCheck();
+      if (passed) {
+         setLocked(false);
+      }
+   }
+
+   // While checking, show a simple message.
    if (loading) {
       return (
          <View style={styles.center}>
             <Text>Loading...</Text>
          </View>
       );
+   }
+
+   // If logged in but locked, show only the lock screen.
+   if (loggedIn && locked) {
+      return <LockScreen onUnlock={handleUnlock} />;
    }
 
    return (
@@ -56,7 +100,6 @@ export default function App() {
                      options={{ title: "Control Robot" }}
                   />
 
-                  {/* New screens */}
                   <Stack.Screen
                      name="Video"
                      component={VideoScreen}
@@ -67,6 +110,13 @@ export default function App() {
                      name="Emergency"
                      component={EmergencyScreen}
                      options={{ title: "Emergencies" }}
+                  />
+
+                  {/* New settings screen */}
+                  <Stack.Screen
+                     name="Settings"
+                     component={SettingsScreen}
+                     options={{ title: "Settings" }}
                   />
                </>
             ) : (

@@ -75,3 +75,23 @@ This file tracks what is finished and what is paused.
 
 - Uses OpenAI model gpt-4.1-nano (cheap). Model name is in .env as OPENAI_MODEL.
 - Emergencies use fixed rules, not GPT, for safety and low cost.
+
+## Phase 6 - Mobile App (done)
+
+- [x] React Native app with Expo, layered structure
+- [x] Signup, login, and secure token storage
+- [x] Live sensor dashboard with Socket.IO updates
+- [x] Robot control: mode switch, joystick, music
+- [x] Emergency auto-switch to manual mode
+- [x] Live video screen with camera controls
+- [x] Emergency screen with resolve
+
+## Notes
+
+- The app IP is set in mobile-app/src/config/api.js. Update it if your WiFi IP changes.
+- CAMERA_URL is empty until the robot camera exists.
+- Socket messages go to all clients. Per-parent rooms are a known future improvement.
+- The biometric code is complete and correct.
+- Face ID does not run inside Expo Go on iPhone.
+- Test it later with a real build, near the end of the project.
+- No code changes should be needed. Only the build.

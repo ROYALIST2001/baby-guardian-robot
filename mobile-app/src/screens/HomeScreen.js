@@ -220,6 +220,13 @@ export default function HomeScreen({ navigation, onLogout }) {
          >
             <Text style={styles.controlButtonText}>Live Video</Text>
          </TouchableOpacity>
+         {/* Go to the settings screen */}
+         <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => navigation.navigate("Settings")}
+         >
+            <Text style={styles.controlButtonText}>Settings</Text>
+         </TouchableOpacity>
       </ScrollView>
    );
 }
@@ -265,6 +272,12 @@ const styles = StyleSheet.create({
    },
    videoButton: {
       backgroundColor: "#5a5a8a",
+      padding: 14,
+      borderRadius: 8,
+      marginTop: 10,
+   },
+   settingsButton: {
+      backgroundColor: "#777777",
       padding: 14,
       borderRadius: 8,
       marginTop: 10,
