@@ -1,16 +1,16 @@
 // FILE: simulate.js
-// JOB: Pretend to be the robot. Publish fake sensor data and events.
+// JOB: Pretend to be the robot. Send sensor numbers, and REAL audio
+//      and image files, so the AI has something to think about.
 
 const mqtt = require("mqtt");
+const fs = require("fs"); // fs lets us read files from disk
 
-// Connect to the same broker as the backend.
 const brokerAddress = "mqtts://" + process.env.MQTT_HOST + ":" + process.env.MQTT_PORT;
 const client = mqtt.connect(brokerAddress, {
    username: process.env.MQTT_USERNAME,
    password: process.env.MQTT_PASSWORD,
 });
 
-// The baby and parent this fake robot belongs to (from .env).
 const BABY_ID = process.env.TEST_BABY_ID;
 const PARENT_ID = process.env.TEST_PARENT_ID;
 
@@ -20,23 +20,25 @@ function randomBetween(min, max) {
    return Math.round(value * 10) / 10;
 }
 
-// Runs once when connected to the broker.
+// Helper: read a file and turn it into Base64 text.
+// Base64 lets us send a file inside a text message.
+function fileToBase64(path) {
+   const bytes = fs.readFileSync(path); // read the raw file
+   return bytes.toString("base64"); // turn it into text
+}
+
 client.on("connect", function () {
    console.log("Simulator: connected. The fake robot is alive.");
 
-   // Every 5 seconds, send one sensor reading.
+   // ---------- Every 5 seconds: one sensor reading ----------
    setInterval(function () {
-      // A list of possible readings.
       const choices = [
          { sensor_type: "temperature", value: randomBetween(24, 30), unit: "C" },
          { sensor_type: "humidity", value: randomBetween(40, 70), unit: "%" },
          { sensor_type: "gas", value: randomBetween(80, 150), unit: "ppm" },
       ];
-
-      // Pick one reading at random.
       const pick = choices[Math.floor(Math.random() * choices.length)];
 
-      // Build the full message.
       const message = {
          baby_id: BABY_ID,
          parent_id: PARENT_ID,
@@ -45,40 +47,64 @@ client.on("connect", function () {
          unit: pick.unit,
       };
 
-      // Publish it to the sensors topic.
       client.publish("babyguardian/sensors", JSON.stringify(message), { qos: 1 });
       console.log("Simulator: sent", pick.sensor_type, "=", pick.value);
    }, 5000);
 
-   // Every 20 seconds, maybe send an event.
+   // ---------- Every 15 seconds: send a real audio clip ----------
+   // The robot's microphone would do this. It sends SOUND, not a conclusion.
+   setInterval(function () {
+      try {
+         const audioBase64 = fileToBase64("./samples/cry.mp3");
+
+         const message = {
+            baby_id: BABY_ID,
+            parent_id: PARENT_ID,
+            audio: audioBase64,
+         };
+
+         client.publish("babyguardian/audio", JSON.stringify(message), { qos: 1 });
+         console.log("Simulator: sent an audio clip. The AI will decide what it is.");
+      } catch (error) {
+         console.log("Simulator: could not read the audio file:", error.message);
+      }
+   }, 15000);
+
+   // ---------- Every 25 seconds: send a real camera image ----------
+   setInterval(function () {
+      try {
+         const imageBase64 = fileToBase64("./samples/baby.jpg");
+
+         const message = {
+            baby_id: BABY_ID,
+            parent_id: PARENT_ID,
+            image: imageBase64,
+         };
+
+         client.publish("babyguardian/image", JSON.stringify(message), { qos: 1 });
+         console.log("Simulator: sent a camera image. The AI will look at it.");
+      } catch (error) {
+         console.log("Simulator: could not read the image file:", error.message);
+      }
+   }, 25000);
+
+   // ---------- Every 40 seconds: maybe a sensor emergency (no AI) ----------
+   // Smoke and fire come from real sensors, so no AI is needed for these.
    setInterval(function () {
       const chance = Math.random();
-      let event = null;
 
-      if (chance < 0.3) {
-         // 30 percent: the baby is crying (a warning).
-         event = {
-            event_type: "crying",
-            severity: "warning",
-            description: "Crying detected",
-         };
-      } else if (chance < 0.4) {
-         // 10 percent: smoke detected (an emergency).
-         event = {
+      if (chance < 0.15) {
+         const event = {
+            baby_id: BABY_ID,
+            parent_id: PARENT_ID,
             event_type: "smoke",
             severity: "emergency",
-            description: "Smoke detected",
+            description: "Smoke detected by the gas sensor",
          };
-      }
-      // Otherwise: all calm, send nothing.
-
-      if (event) {
-         event.baby_id = BABY_ID;
-         event.parent_id = PARENT_ID;
          client.publish("babyguardian/events", JSON.stringify(event), { qos: 1 });
-         console.log("Simulator: sent event ->", event.event_type);
+         console.log("Simulator: SMOKE detected by sensor");
       }
-   }, 20000);
+   }, 40000);
 });
 
 client.on("error", function (err) {

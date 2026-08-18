@@ -1,22 +1,56 @@
 // FILE: src/mqtt/mqttListener.js
-// JOB: Listen for robot messages, save them, then push them live.
+// JOB: Listen for robot messages. Sensors and events are saved directly.
+//      Audio and images are sent to the AI first, then become events.
 
 const mqttClient = require("../config/mqtt");
-const socket = require("../config/socket"); // new: to emit live updates
+const socket = require("../config/socket");
+const brainClient = require("../services/brainClient");
+const aiClient = require("../services/aiClient"); // new
+const modeService = require("../services/modeService");
 const readingService = require("../services/readingService");
 const eventService = require("../services/eventService");
-const brainClient = require("../services/brainClient");
-const modeService = require("../services/modeService");
 
+// The topics we listen to.
 const SENSOR_TOPIC = "babyguardian/sensors";
 const EVENT_TOPIC = "babyguardian/events";
+const AUDIO_TOPIC = "babyguardian/audio"; // new
+const IMAGE_TOPIC = "babyguardian/image"; // new
+
+// ---- A shared helper: save an event, push it live, and think about it ----
+// Both the direct events and the AI-created events use this, so the
+// behaviour is identical no matter where the event came from.
+async function handleEvent(eventData, io) {
+   // Step 1: save it.
+   await eventService.createEvent(eventData.parent_id, eventData);
+   console.log("EVENT saved ->", eventData.event_type, "(" + eventData.severity + ")");
+
+   // Step 2: push it live to the app.
+   if (io) {
+      io.emit("event", eventData);
+   }
+
+   // Step 3: ask the brain what to do.
+   const decision = await brainClient.askBrain(eventData);
+   if (decision) {
+      console.log("BRAIN decision:", decision.action, "-", decision.action_result);
+
+      // On an emergency, force the robot back to manual mode.
+      if (decision.action === "emergency") {
+         await modeService.setMode("manual", "emergency: " + eventData.event_type);
+      }
+   }
+}
 
 function start() {
    mqttClient.on("connect", function () {
       console.log("MQTT: connected to the broker");
+
+      // Subscribe to all four topics.
       mqttClient.subscribe(SENSOR_TOPIC, { qos: 1 });
       mqttClient.subscribe(EVENT_TOPIC, { qos: 1 });
-      console.log("MQTT: listening on sensors and events topics");
+      mqttClient.subscribe(AUDIO_TOPIC, { qos: 1 });
+      mqttClient.subscribe(IMAGE_TOPIC, { qos: 1 });
+      console.log("MQTT: listening on sensors, events, audio and image topics");
    });
 
    mqttClient.on("error", function (err) {
@@ -26,7 +60,6 @@ function start() {
    mqttClient.on("message", async function (topic, messageBuffer) {
       const text = messageBuffer.toString();
 
-      // Turn the text into an object. Stop safely if it is broken.
       let data;
       try {
          data = JSON.parse(text);
@@ -35,54 +68,90 @@ function start() {
          return;
       }
 
-      // Get the Socket.IO server so we can push updates.
       const io = socket.getIo();
 
       try {
+         // ---------- SENSOR READINGS (no AI needed) ----------
          if (topic === SENSOR_TOPIC) {
-            // Step 1: save the reading to the database.
             await readingService.createReading(data.parent_id, data);
             console.log("MQTT: saved reading ->", data.sensor_type, "=", data.value);
 
-            // Step 2: push it live to every connected app.
-            // The message name is "sensor_reading". The app listens for this name.
             if (io) {
                io.emit("sensor_reading", data);
             }
          }
 
+         // ---------- DIRECT EVENTS (smoke, fire, fall: sensors, no AI) ----------
          if (topic === EVENT_TOPIC) {
-            // Step 1: save the event.
-            await eventService.createEvent(data.parent_id, data);
-            console.log(
-               "MQTT: saved event ->",
-               data.event_type,
-               "(" + data.severity + ")",
-            );
+            await handleEvent(data, io);
+         }
 
-            // Step 2: push it live.
-            if (io) {
-               io.emit("event", data);
+         // ---------- AUDIO (the AI must listen) ----------
+         if (topic === AUDIO_TOPIC) {
+            console.log("MQTT: audio clip received, asking the AI...");
+
+            // Step 1: turn the Base64 text back into raw bytes.
+            const audioBytes = Buffer.from(data.audio, "base64");
+
+            // Step 2: ask the AI what this sound is.
+            const result = await aiClient.detectCry(data.baby_id, audioBytes);
+
+            // If the AI failed, stop here quietly.
+            if (!result) {
+               console.log("MQTT: AI gave no answer for the audio");
+               return;
             }
-            // Step 3: NEW: ask the brain what to do about this event.
-            const decision = await brainClient.askBrain(data);
-            if (decision) {
-               console.log(
-                  "BRAIN decision:",
-                  decision.action,
-                  "-",
-                  decision.action_result,
-               );
 
-               // NEW: on an emergency, force the robot back to manual mode,
-               // so the parent is in control. This also tells the app live.
-               if (decision.action === "emergency") {
-                  await modeService.setMode("manual", "emergency: " + data.event_type);
-               }
+            console.log("AI heard:", result.label, "(score", result.score + ")");
+
+            // Step 3: only create an event if the AI actually found crying.
+            if (result.is_crying) {
+               const cryEvent = {
+                  baby_id: data.baby_id,
+                  parent_id: data.parent_id,
+                  event_type: "crying",
+                  severity: "warning",
+                  description: "Crying detected by AI: " + result.label,
+               };
+               await handleEvent(cryEvent, io);
+            } else {
+               console.log("MQTT: no crying in this clip. Nothing to do.");
             }
          }
-      } catch (saveError) {
-         console.log("MQTT: could not save message:", saveError.message);
+
+         // ---------- IMAGE (the AI must look) ----------
+         if (topic === IMAGE_TOPIC) {
+            console.log("MQTT: image received, asking the AI...");
+
+            // Step 1: turn the Base64 text back into raw bytes.
+            const imageBytes = Buffer.from(data.image, "base64");
+
+            // Step 2: ask the AI if a baby is visible.
+            const result = await aiClient.detectBaby(data.baby_id, imageBytes);
+
+            if (!result) {
+               console.log("MQTT: AI gave no answer for the image");
+               return;
+            }
+
+            console.log("AI saw:", result.count, "person(s)");
+
+            // Step 3: if the baby is NOT visible, that is worth knowing.
+            if (!result.baby_found) {
+               const missingEvent = {
+                  baby_id: data.baby_id,
+                  parent_id: data.parent_id,
+                  event_type: "baby_not_visible",
+                  severity: "warning",
+                  description: "The camera cannot see the baby",
+               };
+               await handleEvent(missingEvent, io);
+            } else {
+               console.log("MQTT: baby is visible. All is well.");
+            }
+         }
+      } catch (error) {
+         console.log("MQTT: could not handle message:", error.message);
       }
    });
 }
