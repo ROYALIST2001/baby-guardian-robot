@@ -1,24 +1,68 @@
 // FILE: src/mqtt/mqttListener.js
-// JOB: Listen for robot messages. Sensors and events are saved directly.
-//      Audio and images are sent to the AI first, then become events.
+// JOB: Listen for robot messages, use the AI, think, and RUN the brain's commands.
 
 const mqttClient = require("../config/mqtt");
 const socket = require("../config/socket");
 const brainClient = require("../services/brainClient");
-const aiClient = require("../services/aiClient"); // new
+const aiClient = require("../services/aiClient");
 const modeService = require("../services/modeService");
+const commandService = require("../services/commandService"); // new
 const readingService = require("../services/readingService");
 const eventService = require("../services/eventService");
 
-// The topics we listen to.
 const SENSOR_TOPIC = "babyguardian/sensors";
 const EVENT_TOPIC = "babyguardian/events";
-const AUDIO_TOPIC = "babyguardian/audio"; // new
-const IMAGE_TOPIC = "babyguardian/image"; // new
+const AUDIO_TOPIC = "babyguardian/audio";
+const IMAGE_TOPIC = "babyguardian/image";
 
-// ---- A shared helper: save an event, push it live, and think about it ----
-// Both the direct events and the AI-created events use this, so the
-// behaviour is identical no matter where the event came from.
+// ---- NEW: run the list of commands the brain asked for ----
+// The brain suggests. This function decides what is allowed, and sends it.
+async function runBrainCommands(commands, isEmergency) {
+   // Nothing to do.
+   if (!commands || commands.length === 0) {
+      return;
+   }
+
+   // Read the current mode. Movement is only allowed in auto mode,
+   // so the AI never fights the parent for control.
+   const mode = await modeService.getMode();
+
+   // Go through each command one at a time.
+   for (let i = 0; i < commands.length; i++) {
+      const cmd = commands[i];
+
+      try {
+         // ---- MOVEMENT ----
+         if (cmd.command === "move") {
+            // A stop command is always allowed. Stopping is never dangerous.
+            const isStop = cmd.direction === "stop";
+
+            if (mode === "auto" || isStop) {
+               commandService.sendMove(cmd.direction);
+            } else {
+               console.log("SKIPPED move: the parent is driving (manual mode)");
+            }
+         }
+
+         // ---- MUSIC ----
+         // Allowed in both modes. Music does not fight the parent.
+         if (cmd.command === "music") {
+            commandService.sendMusic(cmd.action, cmd.track);
+         }
+
+         // ---- ALARM ----
+         // Always allowed. Safety comes first.
+         if (cmd.command === "alarm") {
+            commandService.sendAlarm(cmd.action);
+         }
+      } catch (error) {
+         // One bad command must not stop the rest.
+         console.log("Command failed:", error.message);
+      }
+   }
+}
+
+// ---- Save an event, push it live, think about it, and act ----
 async function handleEvent(eventData, io) {
    // Step 1: save it.
    await eventService.createEvent(eventData.parent_id, eventData);
@@ -31,21 +75,25 @@ async function handleEvent(eventData, io) {
 
    // Step 3: ask the brain what to do.
    const decision = await brainClient.askBrain(eventData);
-   if (decision) {
-      console.log("BRAIN decision:", decision.action, "-", decision.action_result);
-
-      // On an emergency, force the robot back to manual mode.
-      if (decision.action === "emergency") {
-         await modeService.setMode("manual", "emergency: " + eventData.event_type);
-      }
+   if (!decision) {
+      return;
    }
+
+   console.log("BRAIN decision:", decision.action, "-", decision.action_result);
+
+   // Step 4: on an emergency, force the robot back to manual mode.
+   const isEmergency = decision.action === "emergency";
+   if (isEmergency) {
+      await modeService.setMode("manual", "emergency: " + eventData.event_type);
+   }
+
+   // Step 5: NEW. Actually run the commands the brain asked for.
+   await runBrainCommands(decision.commands, isEmergency);
 }
 
 function start() {
    mqttClient.on("connect", function () {
       console.log("MQTT: connected to the broker");
-
-      // Subscribe to all four topics.
       mqttClient.subscribe(SENSOR_TOPIC, { qos: 1 });
       mqttClient.subscribe(EVENT_TOPIC, { qos: 1 });
       mqttClient.subscribe(AUDIO_TOPIC, { qos: 1 });
@@ -81,7 +129,7 @@ function start() {
             }
          }
 
-         // ---------- DIRECT EVENTS (smoke, fire, fall: sensors, no AI) ----------
+         // ---------- DIRECT EVENTS (smoke, fire, fall) ----------
          if (topic === EVENT_TOPIC) {
             await handleEvent(data, io);
          }
@@ -90,13 +138,9 @@ function start() {
          if (topic === AUDIO_TOPIC) {
             console.log("MQTT: audio clip received, asking the AI...");
 
-            // Step 1: turn the Base64 text back into raw bytes.
             const audioBytes = Buffer.from(data.audio, "base64");
-
-            // Step 2: ask the AI what this sound is.
             const result = await aiClient.detectCry(data.baby_id, audioBytes);
 
-            // If the AI failed, stop here quietly.
             if (!result) {
                console.log("MQTT: AI gave no answer for the audio");
                return;
@@ -104,7 +148,6 @@ function start() {
 
             console.log("AI heard:", result.label, "(score", result.score + ")");
 
-            // Step 3: only create an event if the AI actually found crying.
             if (result.is_crying) {
                const cryEvent = {
                   baby_id: data.baby_id,
@@ -123,10 +166,7 @@ function start() {
          if (topic === IMAGE_TOPIC) {
             console.log("MQTT: image received, asking the AI...");
 
-            // Step 1: turn the Base64 text back into raw bytes.
             const imageBytes = Buffer.from(data.image, "base64");
-
-            // Step 2: ask the AI if a baby is visible.
             const result = await aiClient.detectBaby(data.baby_id, imageBytes);
 
             if (!result) {
@@ -136,7 +176,6 @@ function start() {
 
             console.log("AI saw:", result.count, "person(s)");
 
-            // Step 3: if the baby is NOT visible, that is worth knowing.
             if (!result.baby_found) {
                const missingEvent = {
                   baby_id: data.baby_id,

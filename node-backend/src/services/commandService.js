@@ -5,11 +5,7 @@ const mqttClient = require("../config/mqtt");
 
 const COMMAND_TOPIC = "babyguardian/commands";
 
-// The only movement directions we accept.
 const ALLOWED_DIRECTIONS = ["forward", "backward", "left", "right", "stop"];
-
-// The only camera moves we accept.
-// pan = turn left and right. tilt = look up and down.
 const ALLOWED_CAMERA_MOVES = ["up", "down", "left", "right", "center"];
 
 // ---- Send a movement command ----
@@ -36,7 +32,7 @@ function sendMusic(action, track) {
    return command;
 }
 
-// ---- NEW: send a camera command ----
+// ---- Send a camera command ----
 function sendCamera(move) {
    if (!ALLOWED_CAMERA_MOVES.includes(move)) {
       throw new Error("Camera move must be one of: " + ALLOWED_CAMERA_MOVES.join(", "));
@@ -48,8 +44,21 @@ function sendCamera(move) {
    return command;
 }
 
+// ---- NEW: sound the emergency alarm ----
+function sendAlarm(action) {
+   if (action !== "on" && action !== "off") {
+      throw new Error("Alarm action must be 'on' or 'off'");
+   }
+
+   const command = { command: "alarm", action: action };
+   mqttClient.publish(COMMAND_TOPIC, JSON.stringify(command), { qos: 1 });
+   console.log("COMMAND sent:", command);
+   return command;
+}
+
 module.exports = {
    sendMove: sendMove,
    sendMusic: sendMusic,
    sendCamera: sendCamera,
+   sendAlarm: sendAlarm,
 };
