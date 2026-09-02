@@ -40,8 +40,14 @@ def get_severity(facts):
 
     if event in ["smoke", "fire", "fall"]:
         return "emergency"
-    if facts.get("is_crying") or event == "crying":
+
+    # NEW: distress and a missing baby are both warnings, like crying.
+    if event in ["crying", "distress", "baby_not_visible"]:
         return "warning"
+
+    if facts.get("is_crying"):
+        return "warning"
+
     return "calm"
 
 

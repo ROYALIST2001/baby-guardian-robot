@@ -173,20 +173,25 @@ function start() {
          }
 
          // ---------- IMAGE (the AI must look) ----------
+         // ---------- IMAGE (the AI must look, twice) ----------
          if (topic === IMAGE_TOPIC) {
             console.log("MQTT: image received, asking the AI...");
 
             const imageBytes = Buffer.from(data.image, "base64");
-            const result = await aiClient.detectBaby(data.baby_id, imageBytes);
 
-            if (!result) {
+            // ---- Check 1: is the baby visible at all? ----
+            const babyResult = await aiClient.detectBaby(data.baby_id, imageBytes);
+
+            if (!babyResult) {
                console.log("MQTT: AI gave no answer for the image");
                return;
             }
 
-            console.log("AI saw:", result.count, "person(s)");
+            console.log("AI saw:", babyResult.count, "person(s)");
 
-            if (!result.baby_found) {
+            // If no baby is visible, report that and stop.
+            // There is no face to read, so the second check would be pointless.
+            if (!babyResult.baby_found) {
                const missingEvent = {
                   baby_id: data.baby_id,
                   parent_id: data.parent_id,
@@ -195,8 +200,37 @@ function start() {
                   description: "The camera cannot see the baby",
                };
                await handleEvent(missingEvent, io);
+               return;
+            }
+
+            // ---- Check 2: does the baby look distressed? ----
+            // We only reach here if a baby IS visible.
+            const emotionResult = await aiClient.detectEmotion(data.baby_id, imageBytes);
+
+            if (!emotionResult) {
+               console.log("MQTT: no emotion answer. Baby is visible, so all is well.");
+               return;
+            }
+
+            console.log(
+               "AI face reading:",
+               emotionResult.emotion,
+               "(score",
+               emotionResult.score + ")",
+            );
+
+            if (emotionResult.distressed) {
+               const distressEvent = {
+                  baby_id: data.baby_id,
+                  parent_id: data.parent_id,
+                  event_type: "distress",
+                  severity: "warning",
+                  description:
+                     "Distress seen on the baby's face: " + emotionResult.emotion,
+               };
+               await handleEvent(distressEvent, io);
             } else {
-               console.log("MQTT: baby is visible. All is well.");
+               console.log("MQTT: baby is visible and looks calm. All is well.");
             }
          }
       } catch (error) {

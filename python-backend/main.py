@@ -5,7 +5,8 @@ from fastapi import FastAPI
 from app.routes import health_routes
 from app.routes import cry_routes
 from app.routes import baby_routes
-from app.routes import brain_routes   # new
+from app.routes import brain_routes
+from app.routes import emotion_routes   # new
 
 app = FastAPI()
 
@@ -13,4 +14,5 @@ app = FastAPI()
 app.include_router(health_routes.router)
 app.include_router(cry_routes.router)
 app.include_router(baby_routes.router)
-app.include_router(brain_routes.router)   # new
+app.include_router(brain_routes.router)
+app.include_router(emotion_routes.router)   # new
