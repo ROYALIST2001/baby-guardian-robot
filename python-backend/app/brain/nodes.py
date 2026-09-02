@@ -1,5 +1,5 @@
 # FILE: app/brain/nodes.py
-# JOB: The five nodes. The Act node now builds REAL commands.
+# JOB: The brain's nodes, now with an emergency fast path and real learning.
 
 from app.brain.state import BrainState
 from app.services import brain_service
@@ -30,11 +30,11 @@ def perceive(state: BrainState):
 
     facts["patterns"] = patterns
 
-    print("PERCEIVE:", facts)
+    print("PERCEIVE: event =", facts["event_type"], "| memory items:", len(patterns))
     return {"facts": facts}
 
 
-# ---- Small helper: decide severity from facts (pure logic, testable) ----
+# ---- Small helper: decide severity (pure logic, testable) ----
 def get_severity(facts):
     event = facts.get("event_type", "none")
 
@@ -53,7 +53,21 @@ def analyze(state: BrainState):
     return {"severity": severity}
 
 
-# ---- Node 3: Decide ----
+# ---- NEW: the routing function for the conditional edge ----
+# It returns the NAME of the next node to run.
+def route_after_analyze(state: BrainState):
+    severity = state.get("severity", "calm")
+
+    if severity == "emergency":
+        # Skip the Decide node completely. No GPT. Fixed rules only.
+        print("ROUTE: emergency, taking the fast path")
+        return "emergency_act"
+
+    print("ROUTE: normal, going to decide")
+    return "decide"
+
+
+# ---- Node 3: Decide (only for non-emergencies now) ----
 def decide(state: BrainState):
     facts = state.get("facts", {})
     decision = brain_service.decide(facts)
@@ -65,48 +79,52 @@ def decide(state: BrainState):
     }
 
 
-# ---- NEW small helper: build the command list for an action ----
-# This is pure logic, so it is easy to test.
-# It returns a LIST of commands. Node will send each one.
+# ---- Build the command list for an action ----
 def build_commands(action, facts):
-    # EMERGENCY: sound the alarm and stop moving.
     if action == "emergency":
         return [
             {"command": "alarm", "action": "on"},
             {"command": "move", "direction": "stop"},
         ]
 
-    # CARE: play a lullaby and move closer to the baby.
     if action == "care":
-        # Use the lullaby that worked before, if we remember one.
+        # Pick the lullaby with the best success rate for THIS baby.
         patterns = facts.get("patterns", {})
-        track = patterns.get("best_lullaby", "lullaby1")
+        track = pattern_service.pick_best_lullaby(patterns)
 
         return [
             {"command": "music", "action": "play", "track": track},
             {"command": "move", "direction": "forward"},
         ]
 
-    # NOTIFY: no robot command. The alert system handles this.
-    if action == "notify":
-        return []
-
-    # NOTHING: all calm, so do nothing.
     return []
 
 
-# ---- Node 4: Act (now builds real commands) ----
+# ---- NEW Node: EmergencyAct (the fast path) ----
+# No GPT. No thinking. Fixed, predictable, safe.
+def emergency_act(state: BrainState):
+    facts = state.get("facts", {})
+
+    commands = build_commands("emergency", facts)
+
+    print("EMERGENCY ACT: alarm on, robot stopped. No GPT used.")
+    return {
+        "action": "emergency",
+        "reason": "Emergency rules: " + str(facts.get("event_type")),
+        "used_gpt": False,
+        "action_result": "Emergency: alarm on, robot stopped.",
+        "commands": commands,
+    }
+
+
+# ---- Node 4: Act (the normal path) ----
 def act(state: BrainState):
     action = state.get("action", "nothing")
     facts = state.get("facts", {})
 
-    # Build the list of commands for this action.
     commands = build_commands(action, facts)
 
-    # Keep a short human-readable line too, so the logs stay easy to read.
-    if action == "emergency":
-        result = "Emergency: alarm on, robot stopped."
-    elif action == "care":
+    if action == "care":
         result = "Care: playing music and moving closer."
     elif action == "notify":
         result = "Notify: alerting the parent."
@@ -117,27 +135,40 @@ def act(state: BrainState):
     return {"action_result": result, "commands": commands}
 
 
-# ---- Node 5: Learn (saves memory) ----
+# ---- Node 5: Learn (now records lullaby attempts) ----
 def learn(state: BrainState):
     facts = state.get("facts", {})
     action = state.get("action", "nothing")
+    commands = state.get("commands", [])
 
     baby_id = facts.get("baby_id", "")
     parent_id = facts.get("parent_id", "")
 
-    note = "For event '" + str(facts.get("event_type")) + "', chose action '" + str(action) + "'."
+    if not baby_id or not parent_id:
+        print("LEARN: no baby id, nothing saved")
+        return {"learn_note": "No memory saved"}
 
-    if baby_id and parent_id:
-        try:
-            pattern_service.save_pattern(baby_id, parent_id, "last_action", action)
+    try:
+        patterns = facts.get("patterns", {})
 
-            if facts.get("event_type") == "crying":
-                old_patterns = facts.get("patterns", {})
-                old_count = int(old_patterns.get("cry_count", "0"))
-                new_count = old_count + 1
-                pattern_service.save_pattern(baby_id, parent_id, "cry_count", new_count)
-        except Exception as error:
-            print("LEARN: could not save patterns:", str(error))
+        # Remember the last action.
+        pattern_service.save_pattern(baby_id, parent_id, "last_action", action)
 
+        # Count crying events.
+        if facts.get("event_type") == "crying":
+            old_count = int(patterns.get("cry_count", "0"))
+            pattern_service.save_pattern(baby_id, parent_id, "cry_count", old_count + 1)
+
+        # NEW: if we played a lullaby, record that we TRIED it.
+        # Whether it WORKED is checked later, by Node.
+        for cmd in commands:
+            if cmd.get("command") == "music" and cmd.get("action") == "play":
+                track = cmd.get("track")
+                pattern_service.record_lullaby_tried(baby_id, parent_id, track, patterns)
+
+    except Exception as error:
+        print("LEARN: could not save patterns:", str(error))
+
+    note = "Event '" + str(facts.get("event_type")) + "' -> action '" + str(action) + "'."
     print("LEARN:", note)
     return {"learn_note": note}

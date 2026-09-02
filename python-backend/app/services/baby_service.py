@@ -1,63 +1,95 @@
-# FILE: app/services/baby_service.py
-# JOB: Detect a baby (person) in an image, using both caches.
+# FILE: app/services/brain_service.py
+# JOB: Decide what to do. Rules for danger, GPT for soft choices.
 
-import os
-import requests
-from app.config import cache
+from app.config import openai_client
+from app.services import pattern_service
 
-COLAB_AI_URL = os.environ.get("COLAB_AI_URL", "")
-PERSON_LABEL = "person"
-MIN_SCORE = 0.7
+client = openai_client.client
+MODEL = openai_client.OPENAI_MODEL
 
 
-def detect_baby(baby_id, image_bytes):
-    if not COLAB_AI_URL:
-        raise Exception("COLAB_AI_URL is not set in .env")
+# ---- Rules for clear emergencies (no GPT, no cost) ----
+def check_emergency_rules(situation):
+    event = situation.get("event_type", "")
+    if event in ["smoke", "fire", "fall"]:
+        return {
+            "action": "emergency",
+            "reason": "Dangerous event detected: " + event,
+            "used_gpt": False
+        }
+    return None
 
-    # ---- Check 1: exact-match cache ----
-    exact_key = cache.make_exact_key("baby", image_bytes)
-    exact_answer = cache.get_exact(exact_key)
-    if exact_answer is not None:
-        print("Exact cache hit for baby")
-        return exact_answer
 
-    # ---- Check 2: time-window cache ----
-    recent_key = cache.make_recent_key("baby_recent", baby_id)
-    recent_answer = cache.get_recent(recent_key)
-    if recent_answer is not None:
-        print("Recent cache hit for baby (same baby, last few seconds)")
-        return recent_answer
+# ---- NEW: build a clear, readable prompt ----
+# This is a separate function so it is easy to read and easy to test.
+def build_prompt(situation):
+    # Describe what is happening now, in plain words.
+    event = situation.get("event_type", "none")
+    now_lines = ["The current event is: " + str(event) + "."]
 
-    # ---- Both missed. Call the model. ----
-    print("Cache miss. Calling the baby detection model.")
-    url = COLAB_AI_URL + "/detect"
-    files = {"file": ("image", image_bytes)}
-    response = requests.post(url, files=files)
+    if situation.get("duration_minutes"):
+        now_lines.append(
+            "It has lasted " + str(situation.get("duration_minutes")) + " minutes."
+        )
 
-    if response.status_code != 200:
-        raise Exception("Colab server error " + str(response.status_code) + ": " + response.text)
+    if not situation.get("baby_found", True):
+        now_lines.append("The camera cannot currently see the baby.")
 
-    data = response.json()
-    all_objects = data["results"]
+    # Describe the history, in plain words.
+    patterns = situation.get("patterns", {})
+    history = pattern_service.describe_patterns(patterns)
 
-    person_boxes = []
-    for obj in all_objects:
-        label = obj["label"].lower()
-        score = obj["score"]
-        if label == PERSON_LABEL and score >= MIN_SCORE:
-            person_boxes.append({
-                "score": score,
-                "box": obj["box"]
-            })
+    prompt = (
+        "You are a baby care assistant for a monitoring robot.\n\n"
+        "SITUATION NOW:\n" + " ".join(now_lines) + "\n\n"
+        "HISTORY FOR THIS BABY:\n" + history + "\n\n"
+        "Use the history to make a better choice. "
+        "Choose ONE action from this list: care, notify, nothing.\n"
+        "care = play a lullaby and move closer to comfort the baby.\n"
+        "notify = tell the parent, but do not act.\n"
+        "nothing = all is fine, do nothing.\n\n"
+        "Answer with only the one word."
+    )
 
-    answer = {
-        "baby_found": len(person_boxes) > 0,
-        "count": len(person_boxes),
-        "boxes": person_boxes
+    return prompt
+
+
+# ---- Ask GPT for the soft decision ----
+def ask_gpt(situation):
+    prompt = build_prompt(situation)
+
+    # Print the prompt so you can see exactly what the AI was told.
+    print("PROMPT SENT TO GPT:\n" + prompt)
+
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=5,
+        temperature=0
+    )
+
+    answer = response.choices[0].message.content.strip().lower()
+
+    return {
+        "action": answer,
+        "reason": "Decided by GPT using the baby's history",
+        "used_gpt": True
     }
 
-    # ---- Save in BOTH caches ----
-    cache.set_exact(exact_key, answer)
-    cache.set_recent(recent_key, answer)
 
-    return answer
+# ---- The single decide step ----
+def decide(situation):
+    emergency = check_emergency_rules(situation)
+    if emergency is not None:
+        return emergency
+    return ask_gpt(situation)
+
+
+# ---- Run the whole thinking loop ----
+def run_brain(situation):
+    from app.brain.graph import brain_graph
+
+    start_state = {"situation": situation}
+    final_state = brain_graph.invoke(start_state)
+
+    return final_state

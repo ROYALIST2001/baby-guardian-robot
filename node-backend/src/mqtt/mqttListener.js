@@ -9,6 +9,7 @@ const modeService = require("../services/modeService");
 const commandService = require("../services/commandService"); // new
 const readingService = require("../services/readingService");
 const eventService = require("../services/eventService");
+const outcomeTracker = require("../services/outcomeTracker");
 
 const SENSOR_TOPIC = "babyguardian/sensors";
 const EVENT_TOPIC = "babyguardian/events";
@@ -17,7 +18,7 @@ const IMAGE_TOPIC = "babyguardian/image";
 
 // ---- NEW: run the list of commands the brain asked for ----
 // The brain suggests. This function decides what is allowed, and sends it.
-async function runBrainCommands(commands, isEmergency) {
+async function runBrainCommands(commands, babyId, parentId) {
    // Nothing to do.
    if (!commands || commands.length === 0) {
       return;
@@ -48,6 +49,11 @@ async function runBrainCommands(commands, isEmergency) {
          // Allowed in both modes. Music does not fight the parent.
          if (cmd.command === "music") {
             commandService.sendMusic(cmd.action, cmd.track);
+
+            // NEW: start watching to see if this lullaby works.
+            if (cmd.action === "play" && babyId && parentId) {
+               outcomeTracker.lullabyPlayed(babyId, parentId, cmd.track);
+            }
          }
 
          // ---- ALARM ----
@@ -64,6 +70,10 @@ async function runBrainCommands(commands, isEmergency) {
 
 // ---- Save an event, push it live, think about it, and act ----
 async function handleEvent(eventData, io) {
+   // NEW: if crying came back, the last lullaby did not work.
+   if (eventData.event_type === "crying") {
+      outcomeTracker.cryingReturned(eventData.baby_id);
+   }
    // Step 1: save it.
    await eventService.createEvent(eventData.parent_id, eventData);
    console.log("EVENT saved ->", eventData.event_type, "(" + eventData.severity + ")");
@@ -87,8 +97,8 @@ async function handleEvent(eventData, io) {
       await modeService.setMode("manual", "emergency: " + eventData.event_type);
    }
 
-   // Step 5: NEW. Actually run the commands the brain asked for.
-   await runBrainCommands(decision.commands, isEmergency);
+   // Step 5: actually run the commands the brain asked for.
+   await runBrainCommands(decision.commands, eventData.baby_id, eventData.parent_id);
 }
 
 function start() {
