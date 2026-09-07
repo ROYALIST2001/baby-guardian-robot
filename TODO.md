@@ -95,3 +95,25 @@ This file tracks what is finished and what is paused.
 - Face ID does not run inside Expo Go on iPhone.
 - Test it later with a real build, near the end of the project.
 - No code changes should be needed. Only the build.
+
+## Phase 6.5 - Completing the AI (done)
+
+- [x] Part 1: AI models connected to the live pipeline
+      (robot sends real audio and images, not conclusions)
+- [x] Part 2: the brain sends real robot commands
+      (auto mode actually works now)
+- [x] Part 3: memory used in the prompt, lullaby learning,
+      emergency fast path with no GPT
+- [x] Part 4: third AI model, facial expression for distress
+- [ ] Part 5: fine-tuning the cry model (optional, future improvement)
+
+## Notes
+
+- All three AI senses now run automatically on real data.
+- Emergencies use fixed rules only. No AI decides an emergency.
+- The brain learns which lullaby calms this baby, and picks the winner.
+- The face model is trained on adults, so it only ever creates a warning.
+
+## Next up
+
+- [ ] Phase 7 - Notifications (push, SMS, calls) and the alert queue
