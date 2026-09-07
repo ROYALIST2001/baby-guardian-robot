@@ -19,6 +19,7 @@ const readingRoutes = require("./src/routes/readingRoutes");
 const eventRoutes = require("./src/routes/eventRoutes");
 const modeRoutes = require("./src/routes/modeRoutes"); // new
 const commandRoutes = require("./src/routes/commandRoutes"); // new
+const profileRoutes = require("./src/routes/profileRoutes"); // new
 
 const app = express();
 const PORT = 3000;
@@ -60,6 +61,7 @@ app.use("/v1/sensor-readings", generalLimit, authGuard, readingRoutes);
 app.use("/v1/events", generalLimit, authGuard, eventRoutes);
 app.use("/v1/mode", generalLimit, authGuard, modeRoutes); // new
 app.use("/v1/commands", commandLimit, authGuard, commandRoutes); // new
+app.use("/v1/profile", generalLimit, authGuard, profileRoutes); // new
 
 // ---- Start the server ----
 const httpServer = http.createServer(app);

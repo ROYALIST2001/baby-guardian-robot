@@ -25,3 +25,9 @@ export async function getEvents() {
 export async function resolveEvent(eventId) {
    return await putWithAuth("/v1/events/" + eventId + "/resolve", {});
 }
+
+// NEW: send this phone's push token to our backend,
+// so the server knows where to send notifications.
+export async function savePushToken(pushToken) {
+   return await putWithAuth("/v1/profile/push-token", { push_token: pushToken });
+}

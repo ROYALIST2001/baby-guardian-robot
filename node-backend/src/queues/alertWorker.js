@@ -1,57 +1,56 @@
 // FILE: src/queues/alertWorker.js
-// JOB: Take alert jobs off the queue and send them.
-//      For now it logs. Parts 2 and 3 will make it really send.
+// JOB: Take alert jobs off the queue and REALLY send them.
 
 const { Worker } = require("bullmq");
+const profileService = require("../services/profileService");
+const pushService = require("../services/pushService");
 
 const connection = {
    host: "redis",
    port: 6379,
 };
 
-// This function starts the worker. server.js calls it once.
 function start() {
-   // The worker watches the "alerts" queue.
-   // The second argument is the function that DOES each job.
    const worker = new Worker(
       "alerts",
       async function (job) {
          const event = job.data.event;
+         const isEmergency = job.name === "emergency";
 
-         // job.name tells us which kind of job this is.
-         if (job.name === "notification") {
-            console.log(
-               "WORKER: push notification ->",
-               event.event_type,
-               "| attempt",
-               job.attemptsMade + 1,
-            );
-            // PART 2 will send a real Firebase push here.
+         console.log(
+            "WORKER: handling",
+            job.name,
+            "for",
+            event.event_type,
+            "| attempt",
+            job.attemptsMade + 1,
+         );
+
+         // Step 1: find out where to send it.
+         const pushToken = await profileService.getPushToken(event.parent_id);
+
+         // If the parent has no token, there is nothing we can do.
+         // We do NOT throw here, because retrying would never help.
+         if (!pushToken) {
+            console.log("WORKER: this parent has no push token yet. Skipping.");
+            return;
          }
 
-         if (job.name === "emergency") {
-            console.log(
-               "WORKER: EMERGENCY ALERT ->",
-               event.event_type,
-               "| attempt",
-               job.attemptsMade + 1,
-            );
-            console.log("WORKER: would send SMS + phone call + WhatsApp");
-            // PART 3 will send real Twilio SMS and calls here.
-         }
+         // Step 2: send the push. If this throws, BullMQ retries.
+         await pushService.sendPush(pushToken, event, isEmergency);
 
-         // If this function finishes with no error, the job is a SUCCESS.
-         // If it throws an error, BullMQ will retry it.
+         // Step 3 (Part 3 will add): for emergencies, also send SMS and call.
+         if (isEmergency) {
+            console.log("WORKER: SMS and phone call will be added in Part 3");
+         }
       },
       { connection: connection },
    );
 
-   // Runs when a job finishes successfully.
    worker.on("completed", function (job) {
       console.log("WORKER: job done ->", job.name);
    });
 
-   // Runs when a job fails. BullMQ retries automatically.
    worker.on("failed", function (job, err) {
       console.log("WORKER: job failed ->", err.message, "| will retry");
    });

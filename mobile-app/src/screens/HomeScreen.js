@@ -11,7 +11,13 @@ import {
    RefreshControl,
 } from "react-native";
 
-import { getBabies, getReadings, getEvents } from "../services/dataService";
+import {
+   getBabies,
+   getReadings,
+   getEvents,
+   savePushToken,
+} from "../services/dataService";
+import { registerForPush } from "../services/pushService";
 import { connectSocket, disconnectSocket } from "../services/socketService";
 import { deleteToken } from "../services/storageService";
 import SensorCard from "../components/SensorCard";
@@ -79,6 +85,27 @@ export default function HomeScreen({ navigation, onLogout }) {
       }
    }
 
+   // Ask for notification permission and tell the backend our token.
+   // This runs once when the dashboard opens.
+   async function setupPush() {
+      try {
+         // Step 1: get this phone's token.
+         const token = await registerForPush();
+
+         // If we have no token, stop quietly. The app still works.
+         if (!token) {
+            return;
+         }
+
+         // Step 2: send it to our backend so it can notify us later.
+         await savePushToken(token);
+         console.log("Push token saved to the backend");
+      } catch (e) {
+         // Never break the dashboard because of notifications.
+         console.log("Push setup failed:", e.message);
+      }
+   }
+
    // Runs once when the screen opens.
    useEffect(function () {
       let socket = null;
@@ -127,6 +154,9 @@ export default function HomeScreen({ navigation, onLogout }) {
                return [data, ...previous];
             });
          });
+
+         // NEW: set up push notifications for this phone.
+         setupPush();
       }
 
       start();
