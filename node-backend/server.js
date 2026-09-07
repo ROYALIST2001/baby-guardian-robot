@@ -11,6 +11,7 @@ const logger = require("./src/middleware/logger");
 const authGuard = require("./src/middleware/authGuard");
 const socket = require("./src/config/socket");
 const mqttListener = require("./src/mqtt/mqttListener");
+const alertWorker = require("./src/queues/alertWorker"); // new
 
 const authRoutes = require("./src/routes/authRoutes");
 const babyRoutes = require("./src/routes/babyRoutes");
@@ -64,6 +65,7 @@ app.use("/v1/commands", commandLimit, authGuard, commandRoutes); // new
 const httpServer = http.createServer(app);
 socket.init(httpServer);
 mqttListener.start();
+alertWorker.start(); // NEW: start taking alert jobs
 
 httpServer.listen(PORT, function () {
    console.log("Node backend running on port " + PORT);

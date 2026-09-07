@@ -10,6 +10,7 @@ const commandService = require("../services/commandService"); // new
 const readingService = require("../services/readingService");
 const eventService = require("../services/eventService");
 const outcomeTracker = require("../services/outcomeTracker");
+const alertService = require("../services/alertService"); // new
 
 const SENSOR_TOPIC = "babyguardian/sensors";
 const EVENT_TOPIC = "babyguardian/events";
@@ -99,6 +100,10 @@ async function handleEvent(eventData, io) {
 
    // Step 5: actually run the commands the brain asked for.
    await runBrainCommands(decision.commands, eventData.baby_id, eventData.parent_id);
+
+   // Step 6: NEW. Queue an alert so the parent is told,
+   // even if the app is closed.
+   await alertService.handleAlert(eventData);
 }
 
 function start() {
