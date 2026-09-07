@@ -1,9 +1,11 @@
 // FILE: src/queues/alertWorker.js
-// JOB: Take alert jobs off the queue and REALLY send them.
+// JOB: Take alert jobs off the queue and send them.
+//      Warnings get a push. Emergencies get push + SMS + phone call.
 
 const { Worker } = require("bullmq");
 const profileService = require("../services/profileService");
 const pushService = require("../services/pushService");
+const smsService = require("../services/smsService");
 
 const connection = {
    host: "redis",
@@ -26,22 +28,72 @@ function start() {
             job.attemptsMade + 1,
          );
 
-         // Step 1: find out where to send it.
-         const pushToken = await profileService.getPushToken(event.parent_id);
+         // We track what worked. If NOTHING worked, we retry the job.
+         // If at least one channel worked, we do not, because retrying
+         // would send the successful ones all over again.
+         let anySucceeded = false;
+         const problems = [];
 
-         // If the parent has no token, there is nothing we can do.
-         // We do NOT throw here, because retrying would never help.
-         if (!pushToken) {
-            console.log("WORKER: this parent has no push token yet. Skipping.");
-            return;
+         // ---- Channel 1: push notification (both levels) ----
+         try {
+            const pushToken = await profileService.getPushToken(event.parent_id);
+
+            if (pushToken) {
+               await pushService.sendPush(pushToken, event, isEmergency);
+               anySucceeded = true;
+            } else {
+               console.log("WORKER: no push token for this parent");
+            }
+         } catch (error) {
+            problems.push("push: " + error.message);
          }
 
-         // Step 2: send the push. If this throws, BullMQ retries.
-         await pushService.sendPush(pushToken, event, isEmergency);
-
-         // Step 3 (Part 3 will add): for emergencies, also send SMS and call.
+         // ---- Channels 2 and 3: SMS and call (emergencies only) ----
          if (isEmergency) {
-            console.log("WORKER: SMS and phone call will be added in Part 3");
+            const phoneNumber = await profileService.getPhoneNumber(event.parent_id);
+
+            if (!phoneNumber) {
+               console.log("WORKER: no phone number for this parent");
+            } else {
+               // ---- Channel 2: SMS ----
+               try {
+                  await smsService.sendSms(phoneNumber, event);
+                  anySucceeded = true;
+               } catch (error) {
+                  problems.push("sms: " + error.message);
+               }
+
+               // ---- Channel 3: phone call ----
+               try {
+                  await smsService.makeCall(phoneNumber, event);
+                  anySucceeded = true;
+               } catch (error) {
+                  problems.push("call: " + error.message);
+               }
+            }
+         }
+
+         // ---- Decide whether to retry ----
+
+         // Nothing worked, and something actually went wrong.
+         // Throw, so BullMQ retries the whole job.
+         if (!anySucceeded && problems.length > 0) {
+            throw new Error("All channels failed: " + problems.join(" | "));
+         }
+
+         // Some worked, some failed. Log the failures but do NOT retry,
+         // or the parent would get duplicate alerts.
+         if (problems.length > 0) {
+            console.log(
+               "WORKER: some channels failed but others worked ->",
+               problems.join(" | "),
+            );
+         }
+
+         // Nothing worked, but nothing failed either. This means the
+         // parent has no token and no phone number. Retrying is pointless.
+         if (!anySucceeded && problems.length === 0) {
+            console.log("WORKER: no way to reach this parent yet. Not retrying.");
          }
       },
       { connection: connection },

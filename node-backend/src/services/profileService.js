@@ -40,7 +40,24 @@ async function getPushToken(parentId) {
    return result.data.push_token;
 }
 
+// NEW: get the parent's phone number, for SMS and calls.
+// Returns null if they have none.
+async function getPhoneNumber(parentId) {
+   const result = await profileRepository.findOne(parentId);
+
+   if (result.error) {
+      return null;
+   }
+
+   if (!result.data || !result.data.phone) {
+      return null;
+   }
+
+   return result.data.phone;
+}
+
 module.exports = {
    savePushToken: savePushToken,
    getPushToken: getPushToken,
+   getPhoneNumber: getPhoneNumber,
 };
