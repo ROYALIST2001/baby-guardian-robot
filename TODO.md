@@ -117,3 +117,26 @@ This file tracks what is finished and what is paused.
 ## Next up
 
 - [ ] Phase 7 - Notifications (push, SMS, calls) and the alert queue
+
+## Phase 7 - Notifications (done)
+
+- [x] Alert queue with BullMQ on Redis, guaranteed retry delivery
+- [x] Push notifications via Expo, works with the app closed
+- [x] Emergency SMS and phone calls via Twilio
+- [x] Per-channel handling, so no duplicate alerts
+- [x] Quiet hours: warnings silenced at night, emergencies always break through
+- [x] Jest tests for alert rules, quiet hours, and message wording
+
+## Notes
+
+- The proposal names Firebase. We used Expo Push, which uses Firebase and
+  Apple underneath. Moving to Firebase directly would only change
+  pushService.js on the backend and in the app.
+- Twilio trials are limited to verified numbers and the sign-up country.
+  If the keys are missing, the system logs instead of sending, and keeps working.
+- Quiet hours default to off. Defaults are 22 to 6 if switched on.
+- A quiet hours screen in the app is a good future addition. The API is ready.
+
+## Next up
+
+- [ ] Phase 8 - Monitoring (watch our own system for breakages)

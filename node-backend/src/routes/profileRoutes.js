@@ -5,7 +5,8 @@ const express = require("express");
 const router = express.Router();
 const profileController = require("../controllers/profileController");
 
-// PUT /v1/profile/push-token
 router.put("/push-token", profileController.savePushToken);
+router.get("/quiet-hours", profileController.getQuietHours);
+router.put("/quiet-hours", profileController.saveQuietHours);
 
 module.exports = router;

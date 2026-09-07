@@ -38,9 +38,25 @@ async function findPushToken(userId) {
    return result;
 }
 
+// NEW: save the quiet hours settings.
+async function saveQuietHours(userId, enabled, startHour, endHour) {
+   const result = await supabase
+      .from("profiles")
+      .update({
+         quiet_hours_enabled: enabled,
+         quiet_start: startHour,
+         quiet_end: endHour,
+      })
+      .eq("id", userId)
+      .select()
+      .single();
+   return result;
+}
+
 module.exports = {
    insert: insert,
    findOne: findOne,
    savePushToken: savePushToken,
    findPushToken: findPushToken,
+   saveQuietHours: saveQuietHours,
 };
