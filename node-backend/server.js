@@ -26,6 +26,7 @@ const modeRoutes = require("./src/routes/modeRoutes"); // new
 const commandRoutes = require("./src/routes/commandRoutes"); // new
 const profileRoutes = require("./src/routes/profileRoutes"); // new
 const healthRoutes = require("./src/routes/healthRoutes"); // new
+const healthController = require("./src/controllers/healthController"); // new
 
 const app = express();
 const PORT = 3000;
@@ -58,6 +59,10 @@ const commandLimit = rateLimit({
 // ---- Public routes ----
 // ---- Health checks. Public, so monitoring tools can reach them. ----
 app.use("/health", healthRoutes);
+
+// ---- The status dashboard, for humans. ----
+// Open http://localhost/api/status in a browser.
+app.get("/status", healthController.dashboard);
 app.use("/v1/auth", loginLimit, authRoutes);
 
 // ---- Protected routes ----

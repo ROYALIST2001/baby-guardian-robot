@@ -140,3 +140,40 @@ This file tracks what is finished and what is paused.
 ## Next up
 
 - [ ] Phase 8 - Monitoring (watch our own system for breakages)
+
+## Phase 8 - Monitoring (done)
+
+- [x] Deep health checks: database, Redis, MQTT, and the other backend
+- [x] Timeouts on every check, so the health check can never hang
+- [x] Three states: up, down, and degraded
+- [x] Correct status codes: 200 healthy or degraded, 503 down
+- [x] Sentry error tracking on both backends
+- [x] Caught errors reported too, so nothing fails silently
+- [x] Status dashboard at /api/status, refreshes every 15 seconds
+- [x] Jest tests for the overall status logic
+- [ ] Uptime monitoring - waiting for deployment
+
+## Uptime monitoring, when we deploy
+
+- Sign up at uptimerobot.com, free plan.
+- Create an HTTP monitor pointing at: YOUR-URL/api/health/deep
+- Use the DEEP url, not the simple one, so a dead database is caught too.
+- Check every 5 minutes, alert by email.
+- This cannot be done while the backend runs on localhost,
+  because an outside service cannot reach localhost.
+
+## Notes
+
+- Sentry never sends private data. No tokens, phone numbers or media.
+- If Sentry keys are missing, errors go to the logs and the app still runs.
+- The health check does not call Colab or OpenAI, to avoid waking a
+  sleeping server and to avoid cost. It checks the settings exist instead.
+
+## ALL SOFTWARE PHASES ARE NOW COMPLETE
+
+- Phases 1 to 8, plus 6.5, are finished.
+- Next: hardware, Phases 9 to 12.
+
+## Next up
+
+- [ ] Phase 9 - The robot body and wheels
