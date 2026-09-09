@@ -1,13 +1,26 @@
 # FILE: app/routes/health_routes.py
-# JOB: Define the URL and connect it to the controller.
+# JOB: Define the health URLs.
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 from app.controllers import health_controller
 
-# A router is a small group of routes, like express.Router in Node.
 router = APIRouter()
 
-# When someone visits GET /health, call the controller's health function.
+
+# GET /health - the simple, fast check.
 @router.get("/health")
 def health_route():
     return health_controller.health()
+
+
+# GET /health/deep - the real check.
+@router.get("/health/deep")
+def health_deep_route(response: Response):
+    report = health_controller.health_deep()
+
+    # Set the status code. 503 means the service is unavailable.
+    # Monitoring tools watch the code, not the words.
+    if report.get("status") == "down":
+        response.status_code = 503
+
+    return report

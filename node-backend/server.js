@@ -20,6 +20,7 @@ const eventRoutes = require("./src/routes/eventRoutes");
 const modeRoutes = require("./src/routes/modeRoutes"); // new
 const commandRoutes = require("./src/routes/commandRoutes"); // new
 const profileRoutes = require("./src/routes/profileRoutes"); // new
+const healthRoutes = require("./src/routes/healthRoutes"); // new
 
 const app = express();
 const PORT = 3000;
@@ -50,9 +51,8 @@ const commandLimit = rateLimit({
 });
 
 // ---- Public routes ----
-app.get("/health", function (req, res) {
-   res.json({ status: "ok", service: "node-backend" });
-});
+// ---- Health checks. Public, so monitoring tools can reach them. ----
+app.use("/health", healthRoutes);
 app.use("/v1/auth", loginLimit, authRoutes);
 
 // ---- Protected routes ----
