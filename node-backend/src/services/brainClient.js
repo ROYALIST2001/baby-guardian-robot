@@ -2,6 +2,7 @@
 // JOB: Call the Python brain and get its decision.
 
 const axios = require("axios");
+const { captureError } = require("./../config/sentry");
 
 // The Python backend's address inside Docker.
 // "python-backend" is the service name. Port 8000 is its port.
@@ -17,8 +18,11 @@ async function askBrain(eventData) {
       // The brain returns the full result. Give it back.
       return response.data;
    } catch (error) {
-      // If the call fails, log it and return null.
-      console.log("Brain call failed:", error.message);
+      captureError(error, {
+         service: "brainClient",
+         event_type: eventData.event_type,
+         baby_id: eventData.baby_id,
+      });
       return null;
    }
 }

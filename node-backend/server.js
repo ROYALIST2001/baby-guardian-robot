@@ -1,3 +1,7 @@
+// Sentry must load FIRST, before anything else,
+// so it can watch every other file.
+require("./src/config/sentry");
+
 // FILE: server.js
 // JOB: Start the server, connect routes, start MQTT and sockets.
 
@@ -9,6 +13,7 @@ const rateLimit = require("express-rate-limit");
 
 const logger = require("./src/middleware/logger");
 const authGuard = require("./src/middleware/authGuard");
+const errorHandler = require("./src/middleware/errorHandler"); // new
 const socket = require("./src/config/socket");
 const mqttListener = require("./src/mqtt/mqttListener");
 const alertWorker = require("./src/queues/alertWorker"); // new
@@ -62,6 +67,10 @@ app.use("/v1/events", generalLimit, authGuard, eventRoutes);
 app.use("/v1/mode", generalLimit, authGuard, modeRoutes); // new
 app.use("/v1/commands", commandLimit, authGuard, commandRoutes); // new
 app.use("/v1/profile", generalLimit, authGuard, profileRoutes); // new
+
+// ---- Error handler. This must come AFTER all the routes. ----
+// Express only reaches it when something goes wrong.
+app.use(errorHandler);
 
 // ---- Start the server ----
 const httpServer = http.createServer(app);

@@ -4,6 +4,7 @@
 import os
 import requests
 from app.config import cache
+from app.config.sentry import capture_error
 
 COLAB_AI_URL = os.environ.get("COLAB_AI_URL", "")
 CRYING_WORDS = ["cry", "crying", "baby", "infant", "wail", "sob"]
@@ -41,10 +42,17 @@ def detect_cry(baby_id, audio_bytes):
     print("Cache miss. Calling the cry model.")
     url = COLAB_AI_URL + "/classify"
     files = {"file": ("audio", audio_bytes)}
-    response = requests.post(url, files=files)
+    try:
+        response = requests.post(url, files=files, timeout=30)
+    except Exception as error:
+        # Report it, then re-raise so the caller still knows it failed.
+        capture_error(error, {"service": "cry_service", "baby_id": baby_id})
+        raise
 
     if response.status_code != 200:
-        raise Exception("Colab server error " + str(response.status_code) + ": " + response.text)
+        error = Exception("Colab error " + str(response.status_code))
+        capture_error(error, {"service": "cry_service", "baby_id": baby_id})
+        raise error
 
     data = response.json()
     results = data["results"]

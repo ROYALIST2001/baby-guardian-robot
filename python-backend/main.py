@@ -1,6 +1,10 @@
 # FILE: main.py
 # JOB: Create the app and connect all routes.
 
+# Sentry must load FIRST, before anything else,
+# so it can watch every other file.
+from app.config import sentry
+
 from fastapi import FastAPI
 from app.routes import health_routes
 from app.routes import cry_routes

@@ -3,6 +3,7 @@
 
 const axios = require("axios");
 const FormData = require("form-data");
+const { captureError } = require("./../config/sentry");
 
 const PYTHON_URL = "http://python-backend:8000";
 
@@ -20,7 +21,12 @@ async function detectCry(babyId, audioBytes) {
 
       return response.data; // { is_crying, label, score }
    } catch (error) {
-      console.log("AI cry check failed:", error.message);
+      // Report it, but keep running. The system continues without AI.
+      captureError(error, {
+         service: "aiClient",
+         check: "cry",
+         baby_id: babyId,
+      });
       return null;
    }
 }
@@ -39,7 +45,11 @@ async function detectBaby(babyId, imageBytes) {
 
       return response.data; // { baby_found, count, boxes }
    } catch (error) {
-      console.log("AI baby check failed:", error.message);
+      captureError(error, {
+         service: "aiClient",
+         check: "baby",
+         baby_id: babyId,
+      });
       return null;
    }
 }
@@ -58,7 +68,11 @@ async function detectEmotion(babyId, imageBytes) {
 
       return response.data; // { distressed, emotion, score }
    } catch (error) {
-      console.log("AI emotion check failed:", error.message);
+      captureError(error, {
+         service: "aiClient",
+         check: "emotion",
+         baby_id: babyId,
+      });
       return null;
    }
 }
